@@ -30,3 +30,21 @@ def consolidate_result(event, context):
     except Exception as e:
         print(e)
         return {'error': e.args[0]}
+
+
+def score_response(event, context):
+    print(event)
+    result = event.get('Result')
+    if not result or not result.get('value'):
+        return None
+    result = str(result.get('value')).lower()
+    expected = str(event.get('ExpectedResult')).lower()
+    print('Comparing {} to {}'.format(result, expected))
+    if result == expected:
+        return 100
+    elif result.replace('and ', '') == expected.replace('and ', ''):
+        return 80
+    elif result.replace('-', ' ') == expected.replace('-', ' '):
+        return 80
+    else:
+        return 0

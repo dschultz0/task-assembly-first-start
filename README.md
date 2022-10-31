@@ -71,7 +71,6 @@ To apply this new task template to our definition, we can simply add a reference
 
 ```json
 {
-  ...,
   "TemplateFile": "template.html"
 }
 ```
@@ -139,7 +138,7 @@ You may have noticed that the task result above includes `Result` and `Responses
             "numberAsText": "Four"
           }
         },
-        "AssignmentId": "3ERMJ6L4DYRPC5L5VMTQ0TYQKQG7M2",
+        "AssignmentId": "3ERMJ6L4DYRPC5L5VMTQ0TYQKQG7M2"
       },
       {
         "WorkerId": "ACKG8OU1KHKO2",
@@ -148,7 +147,7 @@ You may have noticed that the task result above includes `Result` and `Responses
             "numberAsText": "four"
           }
         },
-        "AssignmentId": "3FTYUGLFSUK7L719U0FQJJX0K6T5D3",
+        "AssignmentId": "3FTYUGLFSUK7L719U0FQJJX0K6T5D3"
       }
     ]
   },
@@ -160,7 +159,7 @@ You may have noticed that the task result above includes `Result` and `Responses
           "numberAsText": "Four"
         }
       },
-      "AssignmentId": "3ERMJ6L4DYRPC5L5VMTQ0TYQKQG7M2",
+      "AssignmentId": "3ERMJ6L4DYRPC5L5VMTQ0TYQKQG7M2"
     },
     {
       "WorkerId": "ACKG8OU1KHKO2",
@@ -169,7 +168,7 @@ You may have noticed that the task result above includes `Result` and `Responses
           "numberAsText": "four"
         }
       },
-      "AssignmentId": "3FTYUGLFSUK7L719U0FQJJX0K6T5D3",
+      "AssignmentId": "3FTYUGLFSUK7L719U0FQJJX0K6T5D3"
     }
   ]
 }
@@ -188,7 +187,6 @@ our `definition.json`:
 
 ```json
 {
-  ...,
   "HandlerFile": "handlers.py",
   "SubmissionHandlers": [{"Name":  "value", "FunctionName":  "process_response"}]
 }
@@ -232,7 +230,6 @@ this function to our task definition, we simply include the following in our `de
 
 ```json
 {
-  ...,
   "HandlerFile": "handlers.py",
   "SubmissionHandlers": [{"Name":  "value", "FunctionName":  "process_response"}],
   "ConsolidationHandlers": [{"Name": "value", "FunctionName": "consolidate_result"}]
@@ -273,3 +270,54 @@ to retrieve the results to a CSV file.
 python3 -m task-assembly get_batch_results <batch_id> output.csv
 ```
 
+## Improving Quality
+The last step is to establish some test tasks that we can use to ensure we're getting Workers who will 
+do a good job on our task. To do this we've created a data file on known or *gold* answers in `gold.json`.
+When Workers first start working on this task they will be prompted to answer at least two of these before
+they can work on our *real* data.
+
+To evaluate accuracy, we'll add a new handler `score_response` that scores each Worker's response. For
+this we'll use a very simple comparison and give them a score of 100 if they provide an exact match,
+80 if they don't match on the inclusion of "and" or "-" in their answer (i.e. "twenty-four" or 
+"one hundred and six"), and 0 if they still don't match.
+
+The following statements can be added to our `definition.json` file to enable scoring of new workers.
+As you can see, Workers will need to complete at least two tests with an average score of 80 before 
+they can begin working on the *real* tasks. Note that because it generally takes at least 10-15 seconds 
+before scoring is complete so Workers will often be asked to do a third test if they quickly accept another
+task after completing their second test.
+
+```json
+{
+  "ScoringHandler": {"FunctionName": "score_response"},
+  "GoldAnswersFile": "gold.json",
+  "TestPolicy": {
+    "MinTests": 2,
+    "MinScore": 80
+  }
+}
+```
+
+We can now create a new batch to begin using the new scoring that we've created. However, because scoring
+doesn't work well with small batches, expand the size of your `batch.csv` file to at least 20 numbers
+before submitting a new batch to Workers. This limitation is a result of how MTurk handles HITs with
+fewer than 10 Assignments and will be addressed in a future release of Task Assembly.
+Even with a larger set items in this test batch, you may not get responses for all of your items, however
+subsequent batches should have higher yield.
+
+Once you've submitted a new batch, you'll note that `get_batch_results` will now show test responses in
+the results. Because this is the first time we've run a batch with scoring enabled, all Workers will need
+to complete 2-3 test tasks. This means that we'll see a larger number of test responses and fewer *Task*
+responses in our counts. In future batches the portion of responses associated with tests will steadily
+decline.
+
+```
+ - Response Counts:
+     Task: 36
+     Test: 109
+     Total: 145
+```
+
+To see how Workers did on your tests and their relative contribution to the final output, run
+`python -m task_assembly list_workers workers.csv` to generate a report on how many responses
+each Worker has provided for this task definition and their scores on the test tasks.
